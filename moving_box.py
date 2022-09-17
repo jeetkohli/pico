@@ -1,6 +1,7 @@
 from machine import Pin,SPI,PWM
 import framebuf
 import time
+import random
 
 BL = 13
 DC = 8
@@ -151,11 +152,34 @@ class LCD_1inch14(framebuf.FrameBuffer):
         self.cs(1)
       
 #settings
+xfood=0
+yfood=0
+xob=[50,150,20]
+yob=[90,50,30]
+def foodrespawn():
+    global xfood,yfood
+    xfood=random.randint(20,200)
+    yfood=random.randint(20,95)
+
+def drawsnake(snakelist):
+    for i in snakelist:
+        LCD.rect(i[0],i[1],width,height,LCD.green)
+        
+    
 xpos=100
 ypos=50
-width=20
-height=20
+width=10
+height=10
 direction = "ABC"
+olddirection = "ABC"
+score = 0
+gameover = False
+restart=False
+lengthsnake = 1
+snakelist = []
+
+
+foodrespawn()
 
 if __name__=='__main__':
     pwm = PWM(Pin(BL))
@@ -185,27 +209,31 @@ if __name__=='__main__':
     key5 = Pin(18 ,Pin.IN,Pin.PULL_UP)#down
     key6 = Pin(20 ,Pin.IN,Pin.PULL_UP)#right
     
+   
+                     
     while(1):
+        restart=False
         #move with direction
         if direction == "RIGHT" and xpos<205:
+            olddirection = "RIGHT"
             xpos+=5
-            LCD.fill_rect(xpos-5,ypos,20,20,LCD.white)
+            LCD.fill_rect(xpos-5,ypos,width,height,LCD.white)
             
         elif direction == "LEFT" and xpos>15:
+            olddirection = "LEFT"
             xpos-=5
-            LCD.fill_rect(xpos+5,ypos,20,20,LCD.white)
+            LCD.fill_rect(xpos+5,ypos,width,height,LCD.white)
             
         elif direction == "UP" and ypos>15:
+            olddirection = "UP"
             ypos-=5
-            LCD.fill_rect(xpos,ypos+5,20,20,LCD.white)
+            LCD.fill_rect(xpos,ypos+5,width,height,LCD.white)
             
-        elif direction == "DOWN" and ypos<100:
+        elif direction == "DOWN" and ypos<110:
+            olddirection = "DOWN"
             ypos+=5
-            LCD.fill_rect(xpos,ypos-5,20,20,LCD.white)
+            LCD.fill_rect(xpos,ypos-5,width,height,LCD.white)
             
-        if(keyA.value() == 0):
-            print("A")
-                     
         if(keyB.value() == 0):
             print("B")
     
@@ -213,7 +241,6 @@ if __name__=='__main__':
             direction = "UP"
             print(xpos)
             print(ypos)
-
             
         if(key3.value() == 0):#中
             print("CTRL")
@@ -223,7 +250,7 @@ if __name__=='__main__':
             print(xpos)
             print(ypos)
             
-        if(key5.value() == 0 and ypos<100):#下
+        if(key5.value() == 0 and ypos<107):#下
             direction="DOWN"
             print(xpos)
             print(ypos)
@@ -234,8 +261,85 @@ if __name__=='__main__':
             print(xpos)
             print(ypos)
         
-        LCD.rect(xpos,ypos,20,20,LCD.red)
+        #direction changing
+        if direction != olddirection:
+            if direction== "UP":
+                LCD.fill_rect(xpos,ypos-10,width*2,height*2,LCD.white)
+            if direction== "DOWN":
+                LCD.fill_rect(xpos,ypos+10,width*2,height*2,LCD.white)
+            if direction== "LEFT":
+                LCD.fill_rect(xpos+10,ypos,width*2,height*2,LCD.white)
+            if direction== "RIGHT":
+                LCD.fill_rect(xpos-10,ypos,width*2,height*2,LCD.white)
+        
+        while gameover==True:
+            if(keyA.value() == 0):
+                print("A")
+                lengthsnake=0
+                LCD.fill(LCD.white)
+                LCD.show()
+                LCD.text("Snake Game",90,3,LCD.red)
+                #border 
+                LCD.hline(10,10,220,LCD.blue)
+                LCD.hline(10,125,220,LCD.blue)
+                LCD.vline(10,10,115,LCD.blue)
+                LCD.vline(230,10,115,LCD.blue)
+                xpos=100
+                ypos=50
+                restart=True
+                gameover=False
+                score=0
+                
+        LCD.rect(xpos,ypos,width,height,LCD.green)
+        LCD.fill_rect(xfood,yfood,10,10,LCD.blue)
+        for i in range(len(xob)):
+            LCD.text("X",xob[i],yob[i],LCD.red)
+        
+        
+        #detect collision
+        if xfood+7 <= xpos+20 and xfood-7 >= xpos-20 and yfood+7<=ypos+20 and yfood-7>=ypos-20:
+            LCD.fill_rect(xfood,yfood,10,10,LCD.white)
+            foodrespawn()
+            score+=1
+            lengthsnake+=1
+            #width+=1
+            #height+=1
+            LCD.fill_rect(90,126,70,10,LCD.white)
+            LCD.text("Score:"+str(score), 90,126,LCD.red)
+            
+        #object collision
+        for i in range(len(xob)):
+            if xob[i]<= xpos+12 and xob[i]>= xpos-12 and yob[i]<=ypos+9 and yob[i]>=ypos-9:
+                gameover=True
+                LCD.fill(LCD.red)
+                LCD.text("Game over",90,50,LCD.white)
+                LCD.text("Score:"+str(score), 90,70,LCD.green)
+                LCD.text("Press top button to restart",15,90,LCD.blue)
+            
+        #draw snake bodies at the end
+        snakehead=[]
+        snakehead.append(xpos)
+        snakehead.append(ypos)
+        snakelist.append(snakehead)
+        #delete extra bodies
+        if len(snakelist) > lengthsnake:
+            del snakelist[0]
+            if direction == "UP":
+                LCD.fill_rect(xpos,ypos+lengthsnake*height,width,height,LCD.white)                    
+                
+            elif direction == "DOWN":
+                LCD.fill_rect(xpos,ypos-lengthsnake*height,width,height,LCD.white)
+                
+            elif direction == "LEFT":
+                LCD.fill_rect(xpos+lengthsnake*height,ypos,width,height,LCD.white)
+            
+            elif direction == "RIGHT":
+                LCD.fill_rect(xpos-lengthsnake*height,ypos,width,height,LCD.white)
+        drawsnake(snakelist)
+        
         LCD.show()
+
     time.sleep(1)
     LCD.fill(0xFFFF)
+
 
